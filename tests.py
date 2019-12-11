@@ -25,7 +25,7 @@ def test(clin_calls, expected_consensus):
 # Run the tests #
 #################
 
-clin_and_results = [ ({'HLA-A*01:01', 'HLA-A*01:02'}, {'HLA-A*01:01', 'HLA-A*01:02'}),
+clin_and_results = [ ({'HLA-A*01:01', 'HLA-A*01:02'}, {'HLA-A*01:01', 'HLA-A*01:02'}), #basic test
                      ({'HLA-A*01:01', 'HLA-A*01:03'}, {'HLA-A*01:01', 'HLA-A*01:02', 'HLA-A*01:03'}),
                      ({'HLA-A*01:03', 'HLA-A*01:04'}, {'HLA-A*01:01', 'HLA-A*01:02', 'HLA-A*01:03', 'HLA-A*01:04'}),
                      ({'HLA-A*01:01', 'HLA-A*01:01'}, {'HLA-A*01:01', 'HLA-A*01:02'}),
@@ -33,8 +33,9 @@ clin_and_results = [ ({'HLA-A*01:01', 'HLA-A*01:02'}, {'HLA-A*01:01', 'HLA-A*01:
                      ({'HLA-A*01:01/HLA-A*01:03', 'HLA-A*01:02'}, {'HLA-A*01:01', 'HLA-A*01:02'}),
                      ({'HLA-A*01:03/HLA-A*01:04', 'HLA-A*01:02'}, {'HLA-A*01:01', 'HLA-A*01:02', 'HLA-A*01:03', 'HLA-A*01:04'}),
                      ({'HLA-A*01:03/HLA-A*01:04', 'HLA-A*01:05/HLA-A*01:06'}, {'HLA-A*01:01', 'HLA-A*01:02', 'HLA-A*01:03', 'HLA-A*01:04', 'HLA-A*01:05', 'HLA-A*01:06'}),
-                     ({'HLA-A*01:01', 'HLA-A*01:02:03'}, {'HLA-A*01:01', 'HLA-A*01:02'}),
-                     ({'HLA-A*01:01', 'HLA-A*01:03:04'}, {'HLA-A*01:01', 'HLA-A*01:02', 'HLA-A*01:03'}) ]
+                     ({'HLA-A*01:01', 'HLA-A*01:02:03'}, {'HLA-A*01:01', 'HLA-A*01:02'}), #test to make sure extra fields are stripped properly
+                     ({'HLA-A*01:01', 'HLA-A*01:03:04'}, {'HLA-A*01:01', 'HLA-A*01:02', 'HLA-A*01:03'}),
+                     ({'HLA-A*01:02', 'HLA-A*01:01'}, {'HLA-A*01:02', 'HLA-A*01:01'}) ] #make sure order doesn't matter
 
 for input_clin, expected_result in clin_and_results:
     assert( test(input_clin, expected_result) )
