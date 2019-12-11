@@ -24,8 +24,19 @@ from collections import defaultdict
 
 #helper method that takes in the decomposed version of an hla
 #string and returns the full delimited string
-def hla_str(gene, allele_group, spec_allele):
+def build_hla_str(gene, allele_group, spec_allele):
     return gene + "*" + allele_group + ":" + spec_allele
+
+#helper method that takes in a full hla string, like HLA-X*01:02:03:04,
+#and splits it into the gene name (HLA-X), allele group (01), and the
+#specific allele (02), dropping any fields beyond this, because downstream
+#tool do not support these fields
+def split_hla_str(full_hla_str):
+    gene_name, raw_allele_fields = full_hla_str.split('*')
+    split_allele_fields = raw_allele_fields.split(":")
+    allele_group_name = split_allele_fields[0]
+    specific_allele_name = split_allele_fields[1]
+    return (gene_name, allele_group_name, specific_allele_name)
 
 #helper method that creates a mismatch file only if any have been found in the tree,
 #and inserts a header upon initially creating the file. Params:
@@ -81,13 +92,7 @@ if clinical_exists:
 hla_calls = defaultdict( lambda: defaultdict(dict) )
 
 for call in optitype_calls:
-    gene, allele_fields = call.split("*")
-    #TODO improve resolution? it's possible for each call to have up to 4 colon-separated
-    #     fields; this approach is only guaranteed to resolve the first
-    #     However, this may require creation of a full tree custom class with supporting
-    #     methods, etc.
-    #     Note: the majority of calls have only 2 fields, which are properly handled by this approach
-    allele_group, spec_allele = allele_fields.split(":", 1)
+    gene, allele_group, spec_allele = split_hla_str(call)
 
     #checking for existing keys using try/except feels wrong, but follows the python 
     #convention of EAFP (easier to ask forgiveness than permission)
@@ -103,8 +108,7 @@ for call in optitype_calls:
 
 if clinical_exists:
     for call in hc_clinical_calls:
-        gene, allele_fields = call.split("*")
-        allele_group, spec_allele = allele_fields.split(":", 1)
+        gene, allele_group, spec_allele = split_hla_str(call)
 
         try:
             #Case 1: this $call was also called by optitype, so add to the 
@@ -120,8 +124,7 @@ if clinical_exists:
         calls = multi_call.split("/")
         multi_consensus = set()
         for call in calls:
-            gene, allele_fields = call.split("*")
-            allele_group, spec_allele = allele_fields.split(":", 1)
+            gene, allele_group, spec_allele = split_hla_str(call)
             try:
                 #check if this call already exists in the tree, which will be treated
                 #as evidence that this call is the correct call out of the current
@@ -148,8 +151,7 @@ if clinical_exists:
         #and also used to construct the mismatch file
         else:
             for call in calls:
-                gene, allele_fields = call.split("*")
-                allele_group, spec_allele = allele_fields.split(":", 1)
+                gene, allele_group, spec_allele = split_hla_str(call)
 
                 try:
                     hla_calls[gene][allele_group][spec_allele].append('clinical')
@@ -201,10 +203,10 @@ else:
                 #there are only 3 possibilities for the contents of $callers: it can have
                 #one of the two individual caller names, or both names
                 if 'clinical' in callers and 'optitype' in callers:
-                    consensus_calls.append( hla_str(gene, allele_group, spec_allele) )
+                    consensus_calls.append( build_hla_str(gene, allele_group, spec_allele) )
                 else:
-                    consensus_calls.append( hla_str(gene, allele_group, spec_allele) )
-                    mismatches[callers[0]].append( hla_str(gene, allele_group, spec_allele) )
+                    consensus_calls.append( build_hla_str(gene, allele_group, spec_allele) )
+                    mismatches[callers[0]].append( build_hla_str(gene, allele_group, spec_allele) )
         mismatch_written = write_mismatch(mismatch_written, mismatches)
 
     with open("hla_calls/consensus_calls.txt", "w") as c_c:
