@@ -86,77 +86,64 @@ if clinical_exists:
 #Create a basic tree out of dictionaries to hold the data from all callers;
 #top level keys will be genes, pointing to a nested dictionary with
 #allele groups as keys, pointing to a final dictionary with specific alleles
-#as keys and the call source as values
-# ex: optitype calls HLA-A*01:02 -> {HLA-A: {01: {02: [optitype]}}}
+#as keys and a set containing call sources as values
+# ex: optitype calls HLA-A*01:02 -> {HLA-A: {01: {02: {optitype}}}}
 
-hla_calls = defaultdict( lambda: defaultdict(dict) )
+#defaultdict constructor requires a callable; however, it returns an object
+#lambdas create a callable that allows for nested defaultdicts
+hla_calls = defaultdict( lambda: defaultdict( lambda: defaultdict(set) ) )
 
 for call in optitype_calls:
     gene, allele_group, spec_allele = split_hla_str(call)
 
-    #checking for existing keys using try/except feels wrong, but follows the python 
-    #convention of EAFP (easier to ask forgiveness than permission)
-    try:
-        #if this path in the tree already exists, a previously-processed identical $call
-        #from optitype has already been recorded, so updating the call source is unnecessary
-        #this case occurs if an individual is homozygous for a particular gene (according to optitype)
-        hla_calls[gene][allele_group][spec_allele]
-    except KeyError:
-        #if this case is hit, this $call has not been recorded previously and can be safely
-        #and normally added to the "tree"
-        hla_calls[gene][allele_group][spec_allele] = ['optitype']
+    #records this call in the tree and tags it as coming from optitype
+    #the tag is added to a set, so any duplicates (such as from an individual homozygous
+    #for a given gene) are collapsed into a single entry
+    hla_calls[gene][allele_group][spec_allele].add('optitype')
 
 if clinical_exists:
     for call in hc_clinical_calls:
         gene, allele_group, spec_allele = split_hla_str(call)
 
-        try:
-            #Case 1: this $call was also called by optitype, so add to the 
-            #record indicating that clinical data supports this call
-            hla_calls[gene][allele_group][spec_allele].append('clinical')
-        except KeyError:
-            #Case 2: this call is unique to the clinical data, resulting in a
-            #KeyError above; create a record and indicate that only clinical data
-            #supports this call
-            hla_calls[gene][allele_group][spec_allele] = ['clinical']
+        #Case 1: this $call was also called by optitype, so add to the 
+        #record indicating that clinical data supports this call
+        #Case 2: this call is unique to the clinical data; create a record 
+        #and indicate that only clinical data supports this call
+        hla_calls[gene][allele_group][spec_allele].add('clinical')
 
     for multi_call in u_clinical_calls:
         calls = multi_call.split("/")
         multi_consensus = set()
         for call in calls:
             gene, allele_group, spec_allele = split_hla_str(call)
-            try:
-                #check if this call already exists in the tree, which will be treated
-                #as evidence that this call is the correct call out of the current
-                #group of uncertain calls ($multi_call)
-                hla_calls[gene][allele_group][spec_allele]
 
-                #this line is only reached if the above has not thrown an exception and
-                #moved control to the below except block
-                #add as a tuple to avoid re-parsing later
+            #check if this call already exists in the tree, which will be treated as
+            #evidence that this call is the correct call out of the current group of
+            #uncertain calls ($multi_call)
+
+            #TODO this may be biased towards creating a homozygous consensus:
+            #since high confidence clinical calls are evaluated before this, one of 
+            #these calls could be used as evidence when resolving the uncertain call
+            #using the current method. Is this desirable? Should we only use optitype calls
+            #when resolving uncertain clinical calls?
+            #Example: clinical calls 01:02 and 01:02/01:03/01:04
+            if hla_calls[gene][allele_group][spec_allele]:
+                #add as a tuple to avoid re-splitting later
                 multi_consensus.add( (gene, allele_group, spec_allele) )
-            except KeyError:
-                #in this case, there is no further evidence for this particular call
-                #nothing to do at this time
-                pass
 
         #if one and only one of the calls from the uncertain group was already in the tree,
         #that is treated as evidence that this particular call was the correct one. It will
         #be accepted and entered into the tree, while the other calls will be discarded
         if len(multi_consensus) == 1:
             accpt_call = multi_consensus.pop()
-            hla_calls[accpt_call[0]][accpt_call[1]][accpt_call[2]].append('clinical')
+            hla_calls[accpt_call[0]][accpt_call[1]][accpt_call[2]].add('clinical')
         #otherwise, all uncertain calls from the group will be added to the tree; this means
         #they will be added to the consensus superset (since their validity cannot be disproven),
         #and also used to construct the mismatch file
         else:
             for call in calls:
                 gene, allele_group, spec_allele = split_hla_str(call)
-
-                try:
-                    hla_calls[gene][allele_group][spec_allele].append('clinical')
-                except KeyError:
-                    hla_calls[gene][allele_group][spec_allele] = ['clinical']
+                hla_calls[gene][allele_group][spec_allele].add('clinical')
 
 ############################
 ### write out call files ###
@@ -204,9 +191,18 @@ else:
                 #one of the two individual caller names, or both names
                 if 'clinical' in callers and 'optitype' in callers:
                     consensus_calls.append( build_hla_str(gene, allele_group, spec_allele) )
-                else:
+                elif 'clinical' in callers or 'optitype' in callers:
                     consensus_calls.append( build_hla_str(gene, allele_group, spec_allele) )
-                    mismatches[callers[0]].append( build_hla_str(gene, allele_group, spec_allele) )
+                    mismatches[callers.pop()].append( build_hla_str(gene, allele_group, spec_allele) )
+                else:
+                    #TODO previously with try/except and no defaultdict at the leaf level,
+                    #leaf values were guaranteed to be non-empty; no longer the case, since 
+                    #checking a potential node is enough to create it; go through and make sure
+                    #nothing relies on the old assumption
+                    print( 'callers:' )
+                    print callers
+                    print sys.argv
+                    print build_hla_str(gene, allele_group, spec_allele)
         mismatch_written = write_mismatch(mismatch_written, mismatches)
 
     with open("hla_calls/consensus_calls.txt", "w") as c_c:
