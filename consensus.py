@@ -187,22 +187,19 @@ else:
         for allele_group in hla_calls[gene]:
             for spec_allele in hla_calls[gene][allele_group]:
                 callers = hla_calls[gene][allele_group][spec_allele]
-                #there are only 3 possibilities for the contents of $callers: it can have
-                #one of the two individual caller names, or both names
-                if 'clinical' in callers and 'optitype' in callers:
+
+                #if any uncertain calls were resolved to a single call based on prior
+                #evidence, the discarded calls will have been visited but not tagged,
+                #resulting in leaves with empty sets; these can be ignored
+                if callers:
+                    #there are now only 3 possibilities for the contents of $callers:
+                    #{optitype, clinical}, {optitype}, {clinical}
+                    #all will be added to the consensus, possibly creating a superset
+                    #those with only 1 caller represent mismatches between the 2
                     consensus_calls.append( build_hla_str(gene, allele_group, spec_allele) )
-                elif 'clinical' in callers or 'optitype' in callers:
-                    consensus_calls.append( build_hla_str(gene, allele_group, spec_allele) )
-                    mismatches[callers.pop()].append( build_hla_str(gene, allele_group, spec_allele) )
-                else:
-                    #TODO previously with try/except and no defaultdict at the leaf level,
-                    #leaf values were guaranteed to be non-empty; no longer the case, since 
-                    #checking a potential node is enough to create it; go through and make sure
-                    #nothing relies on the old assumption
-                    print( 'callers:' )
-                    print callers
-                    print sys.argv
-                    print build_hla_str(gene, allele_group, spec_allele)
+                    if len(callers) == 1:
+                        mismatches[callers.pop()].append( build_hla_str(gene, allele_group, spec_allele) )
+
         mismatch_written = write_mismatch(mismatch_written, mismatches)
 
     with open("hla_calls/consensus_calls.txt", "w") as c_c:
