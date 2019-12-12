@@ -145,9 +145,9 @@ if clinical_exists:
                 gene, allele_group, spec_allele = split_hla_str(call)
                 hla_calls[gene][allele_group][spec_allele].add('clinical')
 
-############################
-### write out call files ###
-############################
+##############################################
+### write out caller files for convenience ###
+##############################################
 
 os.mkdir("hla_calls")
 
@@ -161,6 +161,10 @@ with open("hla_calls/optitype_calls.txt", "w") as o_c:
 if clinical_exists:
     with open("hla_calls/clinical_calls.txt", "w") as c_c:
         c_c.write( ",".join(raw_clinical_calls) )
+
+#########################################################
+### Generate consensus (superset if callers disagree) ###
+#########################################################
 
 #A consensus file is always generated to be passed on to pvacseq. If there are
 #no clinical calls, this file is the same as optitype_calls.txt. If there are, walk
